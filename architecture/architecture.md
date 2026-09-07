@@ -279,6 +279,120 @@ Did throughput increase before latency increased?
 
 
 ### Vertical vs Horizontal Scaling
+#### Vertical Scaling - Scale up
+- suppose your server is:
+```
+Spring Boot Server
+
+2 CPU
+4 GB RAM
+```
+- if it is struggling, vertical scaling means replacing/upgrading to:
+```
+Spring Boot Server
+
+8 CPU
+16 GB RAM
+```
+- vertical scaling has a ceiling, eventually you get to a point you can't do much
+```
+Small machine
+     ↓
+Medium machine
+     ↓
+Large machine
+     ↓
+Very large machine
+     ↓
+Very expensive machine
+     ↓
+???
+```
+#### Horizontal Scaling - Scale out
+- instead of making the machine bigger; distribute work across multiple instances
+- increases capacity through concurrency
+- it also helps with availability
+- another challenge comes up: distributed system
+    - where does state live?
+- application servers are relatively easy to scale horizontally
+- databases(stateful apps) are much harder 
+- requires load balancing(sth to distribute traffic):
+```
+             NGINX / LB
+            /    |    \
+           ▼     ▼     ▼
+        App 1  App 2  App 3
+```
+- strategies include:
+```
+Round robin
+Least connections
+Weighted routing
+Consistent hashing
+```
+- for this, health checks become very important to know the status of the instances
+- thats why it naturally leads to:
+```
+Health checks
+Readiness
+Liveness
+Failure detection
+```
+
+#### Scaling Principles
+- __scaling doesn't eliminate bottlenecks, it moves them__
+- suppose
+```
+Before
+
+App capacity:       1,000 req/sec
+DB capacity:        5,000 req/sec
+
+Bottleneck:
+APP
+```
+
+- then scale applications:
+```
+App capacity:       8,000 req/sec
+DB capacity:        5,000 req/sec
+
+Bottleneck:
+DATABASE
+```
+- the system capacity is constrained by the weakest relevant part of the path
+
+- __not everything scales linearly__ - if an app has 1k tps, don't assume that 10 instances will automatically give 10k tps, they may all compete for:
+```
+Database
+Network
+Cache
+Disk
+Locks
+External API
+Message broker
+```
+
+- you might realize that they end up with sth like 6500tps
+
+#### Amdahl's Law Intuition
+- suppose part of your work can be parallelized
+```
+████████████████░░░░
+parallel work     serial work
+```
+- adding machines helps the parallel part
+- it doesn't magically help with the serial part
+- if every request eventually requires one serialized critical operation:
+```
+App 1 ─┐
+App 2 ─┼──► ONE critical operation
+App 3 ─┤
+App 4 ─┘
+```
+- that operation can become the ceiling
+- more workers aren't infinitely useful
+
 ### Stateful vs Stateless Systems
 ### Synchronous vs Asynchronous Processing
 ### Availability and Reliability
