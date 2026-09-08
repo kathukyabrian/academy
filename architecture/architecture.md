@@ -394,6 +394,25 @@ App 4 ─┘
 - more workers aren't infinitely useful
 
 ### Stateful vs Stateless Systems
+- state = info
+- if an application keeps state, its design becomes complicated
+- the idea is that from request to request there's information that needs to be remembered
+- statelessness helps horizontal scaling because instances are disposable
+- if you have a stateful application, for horizontal scaling there are a few options
+    1. __session affinity or sticky sessions__ - tell the load balancer to always forward a reques to a certain instance
+        - however, if that instance dies, that request can't be served
+    1. __externalizing state__ - moving shared state out of the application process eg Redis, Postgresql
+- scaling stateful system leads to
+```
+Replication
+Consensus
+Leader election
+Sharding
+Consistency
+Conflict resolution
+```
+- design principle: __Keep application compute as stateless as practical, and place important state in explicit shared stateful systems.__
+
 ### Synchronous vs Asynchronous Processing
 ### Availability and Reliability
 ### Bottlenecks
