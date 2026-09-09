@@ -414,6 +414,229 @@ Conflict resolution
 - design principle: __Keep application compute as stateless as practical, and place important state in explicit shared stateful systems.__
 
 ### Synchronous vs Asynchronous Processing
+- imagine a user creates an order
+#### sync
+```
+User
+ │
+ │ POST /orders
+ ▼
+Order Service
+ │
+ │ process
+ │
+ ▼
+Database
+ │
+ ▼
+Order Service
+ │
+ │ response
+ ▼
+User
+```
+- the caller waits until the operation finishes
+```
+A ─────request────► B
+A       waits       │
+A ◄────response──── B
+```
+- it is simple but it creates temporal coupling
+- suppose:
+```
+Order Service ─────► Email Service
+```
+- for the request to succeed:
+```
+Order Service must be running
+AND
+Email Service must be running
+AT THE SAME TIME
+```
+- now if email service is down:
+```
+Order Service ─────► 💀
+```
+- if email is part of the sync critical path we may get error 500 but:
+```
+PostgreSQL ✓
+Order created ✓
+```
+- order system availability has become dependent on email system's availability
+- also if any services in the chain are slow, that affects other services in the chain - that is called __failure propagation__
+```
+C slow
+  ↓
+B slow
+  ↓
+A slow
+  ↓
+User slow
+```
+- waiting consumes resources such as:
+```
+threads
+connections
+memory
+connection-pool slots
+buffers
+```
+
+#### async
+```
+User
+ │
+ │ POST /orders
+ ▼
+Order Service
+ │
+ ├── save order
+ ├── submit work
+ │
+ ▼
+User gets response
+
+              later...
+
+                 Worker
+                   │
+                   ▼
+             process work
+```
+- caller doesn't wait for all subsequent work to finish
+- introduces a buffer:
+```
+Order Service
+     │
+     ▼
+    Queue
+     │
+     ▼
+Email Worker
+```
+- order service doesn't require email service to process the work immediately
+- orders can continue being accepted if the queue has capacity and the business semantics allow it
+- later:
+```
+Email Worker ✓
+       │
+       ▼
+Queue drains
+```
+- however, there's a tradeoff for __resilience over latency__
+- the email may now arrive 10s later because it is picked up from a queue
+- processing latency may have increased but HTTP latency may have decreased because we don't wait for processing to happen
+- please note that async processing doesn't mean faster work - there may be waiting on queues which may make it slower
+- it introduces __eventual consistency__
+
+
+#### Critical Path
+- work that must complete before the operation can be considered successful from the caller's perspective
+- for our order:
+```
+Validate order
+      ↓
+Create order
+      ↓
+Persist order
+      ↓
+Return success
+```
+- email might not belong here
+
+#### Error Handling in Async
+- sync:
+```
+A → B
+
+B fails
+↓
+A knows immediately
+```
+- async:
+```
+A → Queue → B
+
+A returns success
+
+10 minutes later...
+
+B fails
+```
+- the HTTP session is long gone. so who handles that error?
+- you need mechanisms such as:
+```
+retry
+backoff
+dead-letter queue
+failure status
+alerting
+compensation
+idempotency
+```
+- __a piece of work might be delivered or attempted more than once__
+    - consumers should be designed to tolerate duplicates
+
+#### Ordering Challenges in Async Processing
+- sync processing naturally provide some ordering through control flow:
+```
+Create account
+     ↓
+Activate account
+     ↓
+Close account
+```
+- with async events, you might encounter these events processed across multiple workers:
+```
+Event A
+Event B
+Event C
+```
+- now you need to ask:
+```
+Must A happen before B?
+
+Can B arrive before A?
+
+Can two workers process the same customer's events concurrently?
+```
+
+#### Backpressure
+- producer:
+```
+10,000 messages/sec
+```
+- consumer:
+```
+1,000 messages/sec
+```
+- queue:
+```
+Producer
+10k/sec
+   │
+   ▼
+██████████████████████
+██████████████████████ Queue
+██████████████████████
+   │
+   ▼
+Consumer
+1k/sec
+```
+- every second:
+```
++9,000 messages
+```
+- the queue doesn't solve the capacity problem, it delays it
+- eventually:
+```
+storage fills
+processing delay becomes enormous
+SLOs fail
+messages expire
+cost rises
+```
 ### Availability and Reliability
 ### Bottlenecks
 ### Coupling and Cohesion
