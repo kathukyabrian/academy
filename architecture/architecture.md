@@ -638,6 +638,153 @@ messages expire
 cost rises
 ```
 ### Availability and Reliability
+- availability asks "can the system provide its service when needed?" 
+- reliability asks "can the system perform correctly and consistently over time?"
+
+
+#### Availability
+- needs numbers typically percentages
+- depends on requirements some systems are allowed to have small downtimes
+
+#### Single Points of Failure
+- suppose:
+```
+Internet
+   │
+   ▼
+ NGINX
+   │
+   ▼
+Spring Boot
+   │
+   ▼
+PostgreSQL
+```
+- every component is a potential failure point
+- if spring boot dies:
+```
+Internet
+   │
+   ▼
+ NGINX
+   │
+   X
+Spring Boot 💀
+```
+
+- postgres dies:
+```
+Spring Boot
+   │
+   X
+PostgreSQL 💀
+```
+
+#### Redundancy
+- when you scale horizontally, you improve availability
+```
+             Load Balancer
+            /     |     \
+           ▼      ▼      ▼
+        App 1   App 2   App 3
+```
+- if app 2 dies, service continues
+```
+App 1 ✓
+App 2 💀
+App 3 ✓
+```
+- app is no longer a single point of failure
+- however if all the services run on the same machine, you still have a single point of failure.
+
+#### Failure Domains
+- consider:
+```
+Machine A
+├── App 1
+└── App 2
+
+Machine B
+└── App 3
+```
+- if machine A dies:
+```
+App 1 💀
+App 2 💀
+
+App 3 ✓
+```
+
+#### MTBF and MTTR
+- MTBF -> Mean Time Between Failures 
+    - how long does the system typically operate between failures
+    - higher is better
+    ```
+    failure ───────────── failure
+            ↑
+        MTBF
+    ```
+- MTTR -> Mean Time To Repair
+    - once sth fails, how long until service is restored?
+    - lower is better
+    ```
+    failure
+   │
+   ├───────────────► restored
+         MTTR
+    ```
+- good monitoring should not only check if the service is UP but also if the customer is suffering because of a certain operation
+#### SLI, SLO and SLA
+- SLI -> Service Level Indicator(measurement)
+    - what you measure eg:
+    ```
+    successful requests / total requests
+    ```
+- SLO -> Service Level Objective(target)
+    - your target eg:
+    ```
+    99.9% successful requests
+    ```
+- SLA -> Service Level Agreement(promise)
+    - a formal commitment
+    ```
+    "We guarantee X availability..."
+    ```
+#### Retries can improve reliability, or destroy it
+- Dependency temporarily fails:
+```
+Request
+   ↓
+failure
+   ↓
+retry
+   ↓
+success
+```
+- imagine 10000 requests fail and retry immediately:
+```
+Dependency struggling
+       ↓
+10,000 failures
+       ↓
+10,000 immediate retries
+       ↓
+even more load
+       ↓
+dependency collapses
+```
+- this is called a __retry storm__
+- reliability leads us to:
+```
+Timeouts
+Retries
+Exponential backoff
+Jitter
+Circuit breakers
+Bulkheads
+Idempotency
+```
+
 ### Bottlenecks
 ### Coupling and Cohesion
 ### Monolith vs Modular Monolith vs Microservices
